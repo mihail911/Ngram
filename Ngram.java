@@ -24,7 +24,7 @@ public class Ngram {
         //Get parameters for Ngrams
         public void configure(JobConf job){
             queryFile = job.get("queryFile");
-            ngramSize = String.valueOf(jobs.get("ngramSize"));
+            ngramSize = Integer.parseInt(job.get("ngramSize"));
         }
 
         public void map(LongWritable key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
@@ -40,7 +40,7 @@ public class Ngram {
     }
 
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
-        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, IntWritable> output, Reporter reporter) throws IOException {
+        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             /*
             int sum = 0;
             while (values.hasNext()) {
@@ -70,7 +70,7 @@ public class Ngram {
         conf.setOutputFormat(TextOutputFormat.class);
 
         //Set ngram parameters
-        conf.set("ngramSize", Integer.toString(args[0]));
+        conf.set("ngramSize", args[0]);
         conf.set("queryFile", args[1]);
 
         FileInputFormat.setInputPaths(conf, new Path(args[2]));
