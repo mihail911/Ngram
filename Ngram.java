@@ -6,6 +6,9 @@ import java.lang.String;
 import java.util.*;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.nio.charset.*;
+import java.nio.*;
+import java.io.File;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
@@ -13,7 +16,7 @@ import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.util.*;
 
-import Tokenizer;
+import cs149.ngram.Tokenizer;
 
 public class Ngram {
     //Define custom input format for ngram
@@ -35,22 +38,35 @@ public class Ngram {
         //Get parameters for Ngrams
         public void configure(JobConf job){
             queryFile = job.get("queryFile");
-            ngramSize = String.valueOf(jobs.get("ngramSize"));
+            ngramSize = Integer.parseInt(job.get("ngramSize"));
         }
+	
+	//Got this code off SO--might work
+	public String readFile(String pathname) throws IOException {
+    	File file = new File(pathname);
+    StringBuilder fileContents = new StringBuilder((int)file.length());
+    Scanner scanner = new Scanner(file);
+    String lineSeparator = System.getProperty("line.separator");
 
-
-        //Convert contents of file into a string
-        static String readFile(String path, Charset encoding)
-                throws IOException
-        {
-            byte[] encoded = Files.readAllBytes(Paths.get(path));
-            return new String(encoded, encoding);
+    try {
+        while(scanner.hasNextLine()) {        
+            fileContents.append(scanner.nextLine() + lineSeparator);
         }
+        return fileContents.toString();
+    } finally {
+        scanner.close();
+    }
+	}
 
         //Creates set of all ngrams in query document --maybe want to make this generic for the pages as well??
         public HashSet<String> generateQueryNgrams(){
             HashSet<String> allNgrams = new HashSet<String>();
-            String fileContents = readFile(queryFile, Charset.defaultCharset());
+		String fileContents="";
+		try{
+             fileContents = readFile(queryFile);
+		}catch(IOException e){
+			//blah
+		}
             Tokenizer tokenizer = new Tokenizer(fileContents);
             ArrayList<String> tempGram = new ArrayList<String>();
             while(tokenizer.hasNext()){
@@ -73,9 +89,9 @@ public class Ngram {
             //Assume mapper gets (key, value) = (title page, text of page)
             int similarityScore = 0;
             HashSet<String> queryGrams = generateQueryNgrams();
-            Tokenizer pageTokenizer = Tokenizer(value.toString());
+            Tokenizer tokenizer = new Tokenizer(value.toString());
             ArrayList<String> tempGram = new ArrayList<String>();
-            while(pageTokenizer.hasNext()){
+            while(tokenizer.hasNext()){
                 if(tempGram.size() == ngramSize){
                     String ngram = "";
                     for (String str: tempGram){ //Create string from tokens in arraylist
@@ -91,20 +107,12 @@ public class Ngram {
 
             String compositeValue = key.toString() + "," + Integer.toString(similarityScore);
             output.collect(new Text("1"), new Text(compositeValue));
-
-            /*String line = value.toString();
-            StringTokenizer tokenizer = new StringTokenizer(line);
-            while (tokenizer.hasMoreTokens()) {
-                word.set(tokenizer.nextToken());
-                output.collect(word, one);
-            }*/
-
         }
     }
 
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
-            int maxSim = 0;
+           int maxSim = 0;
             String bestPage = "";
 
             while(values.hasNext()){
@@ -116,13 +124,7 @@ public class Ngram {
                 }
             }
             output.collect(new Text(bestPage), new Text(Integer.toString(maxSim)));
-            /*
-            int sum = 0;
-            while (values.hasNext()) {
-                sum += values.next().get();
-            }
-            output.collect(key, new IntWritable(sum));
-            */
+           
         }
     }
 
@@ -145,7 +147,7 @@ public class Ngram {
         conf.setOutputFormat(TextOutputFormat.class);
 
         //Set ngram parameters
-        conf.set("ngramSize", Integer.toString(args[0]));
+        conf.set("ngramSize", args[0]);
         conf.set("queryFile", args[1]);
 
         FileInputFormat.setInputPaths(conf, new Path(args[2]));
