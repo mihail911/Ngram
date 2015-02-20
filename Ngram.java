@@ -36,6 +36,7 @@ public class Ngram {
         private LineRecordReader lineReader;
         private Text pageTitle;
         private Text pageText;
+        private Text spilloverTitle;
 
         public PageRecordReader(TaskAttemptContext context, FileSplit split) throws IOException {
             FileSplit newSplit = (FileSplit) genericSplit;
@@ -44,29 +45,51 @@ public class Ngram {
             lineReader = new LineRecordReader(jc, newSplit);
             pageTitle = new Text("");
             pageText = new Text("");
+            spilloverTitle = new Text("");
         }
 //        public void initialize (InputSplit split, JobConf job){
 //         Do we need initialize method??/
 //        }
 
+        public static boolean isTitle(String currLine){
+            if (currLine.contains("<title>"))
+                return true;
+            return false;
+        }
+
+        public static Text extractTitle(Text titleLine){
+            int lineSize = titleLine.toString.size();
+            String titleString = titleLine.toString();
+            return new Text(titleString.substring(7,lineSize-8)); //check for off by 1!
+        }
         public boolean nextKeyValue() throws IOException {
+            String body = new String();
+            while(true){
+                bool success = lineReader.nextKeyValue();
+                if(success){
+                    Text value = lineReader.getCurrentValue();
+                    if (isTitle(value.toString())){
+                        pageTitle = spilloverTitle;
+                        pageText = new Text(body);
+                        spilloverTitle = extractTitle(value);
+                        break; //done getting a title, body pair
+                    }
+                    body += value.toString(); //append given line to body of text
+                }else{
+                   break;
+                }
 
-            bool success = lineReader.nextKeyValue();
-            if (success){ //successful key,value read
-
-            }else{
-                //Done reading
             }
         }
 
         //@Override
         public Text getCurrentKey() throws IOException, InterruptedException {
-            return new Text("");
+            return pageTitle;
         }
 
         //@Override
         public Text getCurrentValue() {
-            return new Text("");
+            return pageText;
         }
 
     }
@@ -109,11 +132,12 @@ public class Ngram {
 		try{
              fileContents = readFile(queryFile);
 		}catch(IOException e){
-			//blah
+		    System.out.println("File read not successful");
 		}
             Tokenizer tokenizer = new Tokenizer(fileContents);
             ArrayList<String> tempGram = new ArrayList<String>();
             while(tokenizer.hasNext()){
+                tempGram.add(tokenizer.next());
                 if(tempGram.size() == ngramSize){
                     String ngram = "";
                     for (String str: tempGram){ //Create string from tokens in arraylist
@@ -122,13 +146,13 @@ public class Ngram {
                     allNgrams.add(ngram);
                     tempGram.remove(0); //Remove token at beginning
                 }
-                tempGram.add(tokenizer.next());
             }
             return allNgrams;
         }
 
 
         //TODO: SHOULD WE BE CASE-SENSITIVE??
+        //should we check if key is ""????
         public void map(Text key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             //Assume mapper gets (key, value) = (title page, text of page)
             int similarityScore = 0;
@@ -136,18 +160,20 @@ public class Ngram {
             Tokenizer tokenizer = new Tokenizer(value.toString());
             ArrayList<String> tempGram = new ArrayList<String>();
             while(tokenizer.hasNext()){
-                if(tempGram.size() == ngramSize){
+                tempGram.add(tokenizer.next());
+                if(tempGram.size() == ngramSize) {
                     String ngram = "";
-                    for (String str: tempGram){ //Create string from tokens in arraylist
+                    for (String str : tempGram) { //Create string from tokens in arraylist
                         ngram += str;
                     }
-                    if(queryGrams.contains(ngram)){
+                    if (queryGrams.contains(ngram)) {
                         similarityScore += 1;
                     }
                     tempGram.remove(0); //Remove token at beginning
                 }
-                tempGram.add(tokenizer.next());
             }
+
+            t
 
             String compositeValue = key.toString() + "," + Integer.toString(similarityScore);
             output.collect(new Text("1"), new Text(compositeValue));
