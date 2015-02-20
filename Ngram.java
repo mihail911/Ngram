@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.nio.charset.*;
 import java.nio.*;
 import java.io.File;
+import java.util.Arrays;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
@@ -78,6 +79,7 @@ public class Ngram {
                         key = spilloverTitle;
                         value = new Text(body);
                         spilloverTitle = extractTitle(lineValue);
+			System.out.println("key " + key.toString() + " value " + value.toString());
                         return true; //done getting a title, body pair
                     }
                     body += value.toString(); //append given line to body of text
@@ -191,6 +193,7 @@ public class Ngram {
             }
 
             String compositeValue = key.toString() + "," + Integer.toString(similarityScore);
+		System.out.println("compositeValue: " + compositeValue);
             output.collect(new Text("1"), new Text(compositeValue));
         }
     }
@@ -203,7 +206,9 @@ public class Ngram {
             String bestPage = "";
 
             while(values.hasNext()){
-                String[] pageScore = values.next().toString().split(","); //0 index = page title, 1 index = score
+                String[] pageScore = values.next().toString().split(","); //0 index = page title, 1 index = scorek
+		System.out.println("Array size: " + pageScore.length);
+		System.out.println("Array contents: " + Arrays.toString(pageScore));
                 int score = Integer.parseInt(pageScore[1]);
                 if (score > maxSim ) {
                     maxSim = score;
@@ -242,6 +247,6 @@ public class Ngram {
 
         JobClient.runJob(conf);
         //if necessary
-        //job.waitForCompletion(true)
+//        conf.waitForCompletion(true);
     }
 }
