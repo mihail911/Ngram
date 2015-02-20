@@ -14,7 +14,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.*;
-import org.apache.hadoop.mapreduce; //newer API
+//import org.apache.hadoop.mapreduce.*; //newer API
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.*;
 
@@ -24,28 +24,34 @@ public class Ngram {
 
     //Define custom input format for ngram
     public static class NgramInputFormat extends FileInputFormat<Text, Text>{
-        public RecordReader<Text, Text> createRecordReader(InputSplit split, TaskAttemptContext context, Reporter reporter) throws IOException{
+        public RecordReader<Text, Text> getRecordReader(InputSplit split, JobConf conf, Reporter reporter) throws IOException{
             reporter.setStatus(split.toString());
-            return new PageRecordReader(context, (FileSplit)split);
+            return new PageRecordReader(conf, (FileSplit)split);
         }
     }
 
-    public static class PageRecordReader extends RecordReader<Text, Text>{
+    public static class PageRecordReader implements RecordReader<Text, Text>{
         private Path file = null;
         private Configuration jc;
         private LineRecordReader lineReader;
-        private Text pageTitle;
-        private Text pageText;
+        //private Text pageTitle;
+        //private Text pageText;
         private Text spilloverTitle;
 
-        public PageRecordReader(TaskAttemptContext context, FileSplit split) throws IOException {
-            FileSplit newSplit = (FileSplit) genericSplit;
+	//For linereader
+	private LongWritable lineKey;
+	private Text lineValue;
+
+        public PageRecordReader(JobConf conf, FileSplit split) throws IOException {
+            FileSplit newSplit = (FileSplit) split;
             file = newSplit.getPath();
-            jc = context.getConfiguration();
+            jc = conf;
             lineReader = new LineRecordReader(jc, newSplit);
-            pageTitle = new Text("");
-            pageText = new Text("");
+            //pageTitle = new Text("");
+            //pageText = new Text("");
             spilloverTitle = new Text("");
+		lineKey = lineReader.createKey();
+		lineValue = lineReader.createValue();
         }
 //        public void initialize (InputSplit split, JobConf job){
 //         Do we need initialize method??/
@@ -58,39 +64,50 @@ public class Ngram {
         }
 
         public static Text extractTitle(Text titleLine){
-            int lineSize = titleLine.toString.size();
+            int lineSize = titleLine.toString().length();
             String titleString = titleLine.toString();
             return new Text(titleString.substring(7,lineSize-8)); //check for off by 1!
         }
-        public boolean nextKeyValue() throws IOException {
+        public boolean next(Text key, Text value) throws IOException {
             String body = new String();
             while(true){
-                bool success = lineReader.nextKeyValue();
+                boolean success = lineReader.next(lineKey, lineValue);
                 if(success){
-                    Text value = lineReader.getCurrentValue();
-                    if (isTitle(value.toString())){
-                        pageTitle = spilloverTitle;
-                        pageText = new Text(body);
-                        spilloverTitle = extractTitle(value);
-                        break; //done getting a title, body pair
+                    //Text value = lineReader.getCurrentValue();
+                    if (isTitle(lineValue.toString())){
+                        key = spilloverTitle;
+                        value = new Text(body);
+                        spilloverTitle = extractTitle(lineValue);
+                        return true; //done getting a title, body pair
                     }
                     body += value.toString(); //append given line to body of text
                 }else{
-                   break;
+                   return false;
                 }
-
             }
         }
 
         //@Override
-        public Text getCurrentKey() throws IOException, InterruptedException {
-            return pageTitle;
+        public Text createKey() {
+            return new Text("");
         }
 
         //@Override
-        public Text getCurrentValue() {
-            return pageText;
+        public Text createValue() {
+            return new Text("");
         }
+
+	public long getPos() throws IOException {
+    		return lineReader.getPos();
+  	}
+
+  	public void close() throws IOException {
+    		lineReader.close();
+  	}
+
+  	public float getProgress() throws IOException {
+    		return lineReader.getProgress();
+ 	}
 
     }
 
@@ -172,8 +189,6 @@ public class Ngram {
                     tempGram.remove(0); //Remove token at beginning
                 }
             }
-
-            t
 
             String compositeValue = key.toString() + "," + Integer.toString(similarityScore);
             output.collect(new Text("1"), new Text(compositeValue));
