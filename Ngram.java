@@ -14,20 +14,64 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.*;
+import org.apache.hadoop.mapreduce; //newer API
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.*;
 
 import cs149.ngram.Tokenizer;
 
 public class Ngram {
+
     //Define custom input format for ngram
-//    public static class NgramInputFormat extends FileInputFormat<Text, Text>{
-//        public RecordReader<Text, Text> getRecordReader(InputSplit input, JobConf job, Reporter reporter) throws IOException{
-//            reporter.setStatus(input.toString());
-//            return new PageRecordReader(job, (FileSplit)input);
+    public static class NgramInputFormat extends FileInputFormat<Text, Text>{
+        public RecordReader<Text, Text> createRecordReader(InputSplit split, TaskAttemptContext context, Reporter reporter) throws IOException{
+            reporter.setStatus(split.toString());
+            return new PageRecordReader(context, (FileSplit)split);
+        }
+    }
+
+    public static class PageRecordReader extends RecordReader<Text, Text>{
+        private Path file = null;
+        private Configuration jc;
+        private LineRecordReader lineReader;
+        private Text pageTitle;
+        private Text pageText;
+
+        public PageRecordReader(TaskAttemptContext context, FileSplit split) throws IOException {
+            FileSplit newSplit = (FileSplit) genericSplit;
+            file = newSplit.getPath();
+            jc = context.getConfiguration();
+            lineReader = new LineRecordReader(jc, newSplit);
+            pageTitle = new Text("");
+            pageText = new Text("");
+        }
+//        public void initialize (InputSplit split, JobConf job){
+//         Do we need initialize method??/
 //        }
-//    }
 
+        public boolean nextKeyValue() throws IOException {
 
+            bool success = lineReader.nextKeyValue();
+            if (success){ //successful key,value read
+
+            }else{
+                //Done reading
+            }
+        }
+
+        //@Override
+        public Text getCurrentKey() throws IOException, InterruptedException {
+            return new Text("");
+        }
+
+        //@Override
+        public Text getCurrentValue() {
+            return new Text("");
+        }
+
+    }
+
+//Include a combiner so that we achieve desired run-time (outputs max similarity for all pages send to a given mapper)
 
     public static class Map extends MapReduceBase implements Mapper<Text, Text, Text, Text> {
         private final static IntWritable one = new IntWritable(1);
@@ -41,21 +85,21 @@ public class Ngram {
             ngramSize = Integer.parseInt(job.get("ngramSize"));
         }
 	
-	//Got this code off SO--might work
+	//Got this code off SO--might work CHECK FUNCTIONALITY OF THIS!!!
 	public String readFile(String pathname) throws IOException {
     	File file = new File(pathname);
     StringBuilder fileContents = new StringBuilder((int)file.length());
     Scanner scanner = new Scanner(file);
     String lineSeparator = System.getProperty("line.separator");
-
     try {
-        while(scanner.hasNextLine()) {        
+        while(scanner.hasNextLine()) {
             fileContents.append(scanner.nextLine() + lineSeparator);
         }
         return fileContents.toString();
     } finally {
         scanner.close();
     }
+
 	}
 
         //Creates set of all ngrams in query document --maybe want to make this generic for the pages as well??
@@ -110,6 +154,8 @@ public class Ngram {
         }
     }
 
+    //May have to define a custom Combiner class that emits 20 top pages from each mapper
+
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
            int maxSim = 0;
@@ -143,7 +189,7 @@ public class Ngram {
         conf.setCombinerClass(Reduce.class);
         conf.setReducerClass(Reduce.class);
 
-        conf.setInputFormat(TextInputFormat.class);
+        conf.setInputFormat(NgramInputFormat.class);
         conf.setOutputFormat(TextOutputFormat.class);
 
         //Set ngram parameters
@@ -154,5 +200,7 @@ public class Ngram {
         FileOutputFormat.setOutputPath(conf, new Path(args[3]));
 
         JobClient.runJob(conf);
+        //if necessary
+        //job.waitForCompletion(true)
     }
 }
