@@ -73,6 +73,7 @@ public class Ngram {
             String body = new String();
             while(true){
                 boolean success = lineReader.next(lineKey, lineValue);
+		System.out.println("Line key: " + lineKey.toString() + " Line Value: " + lineValue.toString());
                 if(success){
                     //Text value = lineReader.getCurrentValue();
                     if (isTitle(lineValue.toString())){
@@ -82,7 +83,7 @@ public class Ngram {
 			System.out.println("key " + key.toString() + " value " + value.toString());
                         return true; //done getting a title, body pair
                     }
-                    body += value.toString(); //append given line to body of text
+                    body += lineValue.toString(); //append given line to body of text
                 }else{
                    return false;
                 }
