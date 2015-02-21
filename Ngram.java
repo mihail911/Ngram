@@ -158,33 +158,27 @@ public class Ngram {
 		}
 
 		public int compareTo(KeyValuePair o){
-			return key==o.key?(value.compareTo(o.value)):(o.key-key);
+			return key==o.key?(o.value.compareTo(value)):(o.key-key);
 		}
 
 	}
 
 	public static class Combiner extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
-		TreeSet<KeyValuePair> scorePages = new TreeSet<KeyValuePair>();
-
+		    TreeSet<KeyValuePair> scorePages = new TreeSet<KeyValuePair>();
             while(values.hasNext()){
                 String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
-//                        System.out.println("Array size: " + pageScore.length);
- //                       System.out.println("Array contents: " + Arrays.toString(pageScore));
-		
                 int score = Integer.parseInt(pageScore[1]);
-		scorePages.add(new KeyValuePair(score, pageScore[0]));
-            }
-	
-	String top20Pages = "";
-	for(int count = 0; count < 20; count++){
-		KeyValuePair page = scorePages.pollFirst();
-		String stringPage = Integer.toString(page.key) + "#" +  page.value;
-		top20Pages += (stringPage + "|");
-	}	
-	System.out.println("Top 20 in Combiner: " + top20Pages);
-    output.collect(new Text("1"), new Text(top20Pages));
-
+		        scorePages.add(new KeyValuePair(score, pageScore[0]));
+            }	
+            String top20Pages = "";
+            for(int count = 0; count < 20; count++){
+                KeyValuePair page = scorePages.pollFirst();
+                String stringPage = Integer.toString(page.key) + "#" +  page.value;
+                top20Pages += (stringPage + "|");
+            }	
+            System.out.println("Top 20 in Combiner: " + top20Pages);
+            output.collect(new Text("1"), new Text(top20Pages));
         }
     }
 
@@ -207,10 +201,10 @@ public class Ngram {
 
             }
 
-    for(int count = 0; count < 20; count++){
-        KeyValuePair page = scorePages.pollFirst();
-		output.collect(new Text(Integer.toString(page.key)), new Text(page.value));
-    }
+            for(int count = 0; count < 20; count++){
+                KeyValuePair page = scorePages.pollFirst();
+                output.collect(new Text(Integer.toString(page.key)), new Text(page.value));
+            }
         }
     }
 
