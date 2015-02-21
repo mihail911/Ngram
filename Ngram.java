@@ -149,25 +149,68 @@ public class Ngram {
         }
     }
 
-    //May have to define a custom Combiner class that emits 20 top pages from each mapper
+	public static class KeyValuePair implements Comparable<KeyValuePair>{
+		public int key;
+		public String value;
+		public KeyValuePair(int key, String value){
+			this.key = key;
+			this.value = value;
+		}
+
+		public int compareTo(KeyValuePair o){
+			return key==o.key?(value.compareTo(o.value)):(o.key-key);
+		}
+
+	}
+
+	public static class Combiner extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
+        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
+		TreeSet<KeyValuePair> scorePages = new TreeSet<KeyValuePair>();
+
+            while(values.hasNext()){
+                String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
+//                        System.out.println("Array size: " + pageScore.length);
+ //                       System.out.println("Array contents: " + Arrays.toString(pageScore));
+		
+                int score = Integer.parseInt(pageScore[1]);
+		scorePages.add(new KeyValuePair(score, pageScore[0]));
+            }
+	
+	String top20Pages = "";
+	for(int count = 0; count < 20; count++){
+		KeyValuePair page = scorePages.pollFirst();
+		String stringPage = Integer.toString(page.key) + "#" +  page.value;
+		top20Pages += (stringPage + "|");
+	}	
+	System.out.println("Top 20 in Combiner: " + top20Pages);
+    output.collect(new Text("1"), new Text(top20Pages));
+
+        }
+    }
 
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             int maxSim = 0;
             String bestPage = "";
+			TreeSet<KeyValuePair> scorePages = new TreeSet<KeyValuePair>();
 
             while(values.hasNext()){
                 String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
-		        System.out.println("Array size: " + pageScore.length);
-		        System.out.println("Array contents: " + Arrays.toString(pageScore));
-                int score = Integer.parseInt(pageScore[1]);
-                if (score > maxSim ) {
-                    maxSim = score;
-                    bestPage = pageScore[0];
-                }
+//		        System.out.println("Array size: " + pageScore.length);
+//		        System.out.println("Array contents: " + Arrays.toString(pageScore));
+
+				//All score Pages to key Set and then take top 20
+				for(int index = 0; index < pageScore.length; index++){
+					String[] entries = pageScore[index].split("\\#");
+					scorePages.add(new KeyValuePair(Integer.parseInt(entries[0]), entries[1]));
+				}
+
             }
-            output.collect(new Text(bestPage), new Text(Integer.toString(maxSim)));
-           
+
+    for(int count = 0; count < 20; count++){
+        KeyValuePair page = scorePages.pollFirst();
+		output.collect(new Text(Integer.toString(page.key)), new Text(page.value));
+    }
         }
     }
 
@@ -207,7 +250,7 @@ public class Ngram {
         //conf.setMapOutputValueClass(Text.class);
 
         conf.setMapperClass(Map.class);
-        conf.setCombinerClass(Reduce.class);
+        conf.setCombinerClass(Combiner.class);
         conf.setReducerClass(Reduce.class);
 
         System.out.println("Input path is " + args[2] + ", Output path is " + args[3]);
