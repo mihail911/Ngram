@@ -67,7 +67,7 @@ public class Ngram {
         public static Text extractTitle(Text titleLine){
             int lineSize = titleLine.toString().length();
             String titleString = titleLine.toString();
-            return new Text(titleString.substring(7,lineSize-8)); //check for off by 1!
+            return new Text(titleString.substring(titleString.indexOf("<title>")+7,lineSize-8)); //check for off by 1!
         }
         public boolean next(Text key, Text value) throws IOException {
             String body = new String();
@@ -135,7 +135,7 @@ public class Ngram {
     String lineSeparator = System.getProperty("line.separator");
     try {
         while(scanner.hasNextLine()) {
-            fileContents.append(scanner.nextLine() + lineSeparator);
+            fileContents.append(scanner.nextLine() + "\n");
         }
         return fileContents.toString();
     } finally {
@@ -174,6 +174,7 @@ public class Ngram {
         //should we check if key is ""????
         public void map(Text key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             //Assume mapper gets (key, value) = (title page, text of page)
+if(key.toString().length()>0){
             int similarityScore = 0;
             HashSet<String> queryGrams = generateQueryNgrams();
             Tokenizer tokenizer = new Tokenizer(value.toString());
@@ -196,6 +197,7 @@ public class Ngram {
 		System.out.println("compositeValue: " + compositeValue);
             output.collect(new Text("1"), new Text(compositeValue));
         }
+}
     }
 
     //May have to define a custom Combiner class that emits 20 top pages from each mapper
