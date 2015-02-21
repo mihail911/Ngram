@@ -1,5 +1,5 @@
 // Tokenizer
-//package cs149.ngram;
+package cs149.ngram;
 
 import java.util.Iterator;
 
