@@ -109,11 +109,27 @@ public class Ngram {
 
         private String query;
         private int ngramSize = 0;
+        private HashSet<String> queryGrams = new HashSet<String>();
 
         //Get parameters for Ngrams
         public void configure(JobConf job){
             query = job.get("query");
             ngramSize = Integer.parseInt(job.get("ngramSize"));
+            Tokenizer tokenizer = new Tokenizer(query);
+            String query = "";
+            ArrayList<String> tempGram = new ArrayList<String>();
+            while(tokenizer.hasNext()){
+                tempGram.add(tokenizer.next());
+                if (tempGram.size() == ngramSize) {
+                    String ngram = "";
+                    for (String str : tempGram) {
+                        ngram += str;
+                        ngram += " ";
+                    }
+                    queryGrams.add(ngram);
+                    tempGram.remove(0);
+                }
+            }
         }
 	
 
@@ -123,7 +139,7 @@ public class Ngram {
             //Assume mapper gets (key, value) = (title page, text of page)
             //System.out.println("Mapping key: " + key.toString());
             //System.out.println("Mapping value: " + value.toString());
-            if(key.toString().length()>0){
+            if (key.toString().length()>0){
                 int similarityScore = 0;
                 Tokenizer tokenizer = new Tokenizer(value.toString());
                 ArrayList<String> tempGram = new ArrayList<String>();
@@ -135,15 +151,18 @@ public class Ngram {
                             ngram += str;
                             ngram += " ";
                         }
-                        if (query.contains(ngram)) {
+                        if (queryGrams.contains(ngram)) {
                             similarityScore += 1;
+                            if (key.toString().equals("Puerto Rican Spindalis")) {
+                                System.out.println(ngram);
+                            }
                         }
                         tempGram.remove(0); //Remove token at beginning
                     }
                 }
 
                 String compositeValue = key.toString() + "|" + Integer.toString(similarityScore);
-                System.out.println("compositeValue: " + compositeValue);
+                //System.out.println("compositeValue: " + compositeValue);
                 output.collect(new Text("1"), new Text(compositeValue));
             }
         }
@@ -170,6 +189,7 @@ public class Ngram {
                 String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
                 int score = Integer.parseInt(pageScore[1]);
 		        scorePages.add(new KeyValuePair(score, pageScore[0]));
+
             }	
             String top20Pages = "";
             for(int count = 0; count < 20; count++){
@@ -220,15 +240,7 @@ public class Ngram {
             input += line;
             input += " ";
         }
-        //return input;
-        Tokenizer tokenizer = new Tokenizer(input);
-        String query = "";
-        while(tokenizer.hasNext()){
-            query += tokenizer.next();
-            query += " ";
-        }
-        System.out.println(query);
-        return query;
+        return input;
     }
 
 
