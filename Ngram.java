@@ -17,7 +17,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.*;
-//import org.apache.hadoop.mapreduce.*; //newer API
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.*;
 
@@ -63,14 +62,11 @@ public class Ngram {
             String body = new String();
             while(true){
                 boolean success = lineReader.next(lineKey, lineValue);
-		        //System.out.println("Line key: " + lineKey.toString() + " Line Value: " + lineValue.toString());
                 if(success){
-                    //Text value = lineReader.getCurrentValue();
                     if (isTitle(lineValue.toString())){
                         key.set(spilloverTitle.toString());
                         value.set(body);
                         spilloverTitle = extractTitle(lineValue);
-			            //System.out.println("key " + key.toString() + " value " + value.toString());
                         return true; //done getting a title, body pair
                     }
                     body += lineValue.toString(); //append given line to body of text
@@ -133,12 +129,8 @@ public class Ngram {
         }
 	
 
-        //TODO: SHOULD WE BE CASE-SENSITIVE??
-        //should we check if key is ""????
         public void map(Text key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             //Assume mapper gets (key, value) = (title page, text of page)
-            //System.out.println("Mapping key: " + key.toString());
-            //System.out.println("Mapping value: " + value.toString());
             if (key.toString().length()>0){
                 int similarityScore = 0;
                 Tokenizer tokenizer = new Tokenizer(value.toString());
@@ -153,16 +145,12 @@ public class Ngram {
                         }
                         if (queryGrams.contains(ngram)) {
                             similarityScore += 1;
-                            if (key.toString().equals("Puerto Rican Spindalis")) {
-                                System.out.println(ngram);
-                            }
                         }
                         tempGram.remove(0); //Remove token at beginning
                     }
                 }
 
                 String compositeValue = key.toString() + "|" + Integer.toString(similarityScore);
-                //System.out.println("compositeValue: " + compositeValue);
                 output.collect(new Text("1"), new Text(compositeValue));
             }
         }
@@ -189,7 +177,9 @@ public class Ngram {
                 String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
                 int score = Integer.parseInt(pageScore[1]);
 		        scorePages.add(new KeyValuePair(score, pageScore[0]));
-
+                if (scorePages.size() > 20) {
+                    scorePages.pollLast();
+                }
             }	
             String top20Pages = "";
             for(int count = 0; count < 20; count++){
@@ -197,7 +187,6 @@ public class Ngram {
                 String stringPage = Integer.toString(page.key) + "#" +  page.value;
                 top20Pages += (stringPage + "|");
             }	
-            System.out.println("Top 20 in Combiner: " + top20Pages);
             output.collect(new Text("1"), new Text(top20Pages));
         }
     }
@@ -210,17 +199,15 @@ public class Ngram {
 
             while(values.hasNext()){
                 String[] pageScore = values.next().toString().split("\\|"); //0 index = page title, 1 index = scorek
-//		        System.out.println("Array size: " + pageScore.length);
-//		        System.out.println("Array contents: " + Arrays.toString(pageScore));
-
 				//All score Pages to key Set and then take top 20
 				for(int index = 0; index < pageScore.length; index++){
 					String[] entries = pageScore[index].split("\\#");
 					scorePages.add(new KeyValuePair(Integer.parseInt(entries[0]), entries[1]));
+                    if (scorePages.size() > 20) {
+                        scorePages.pollLast();
+                    }
 				}
-
             }
-
             for(int count = 0; count < 20; count++){
                 KeyValuePair page = scorePages.pollFirst();
                 output.collect(new Text(Integer.toString(page.key)), new Text(page.value));
@@ -251,15 +238,10 @@ public class Ngram {
         conf.setOutputKeyClass(Text.class);
         conf.setOutputValueClass(Text.class);
 
-        //Set mapper output key,value types
-        //conf.setMapOutputKeyClass(Text.class);
-        //conf.setMapOutputValueClass(Text.class);
-
         conf.setMapperClass(Map.class);
         conf.setCombinerClass(Combiner.class);
         conf.setReducerClass(Reduce.class);
 
-        System.out.println("Input path is " + args[2] + ", Output path is " + args[3]);
         FileInputFormat.setInputPaths(conf, new Path(args[2]));
         FileOutputFormat.setOutputPath(conf, new Path(args[3]));
 
@@ -269,12 +251,9 @@ public class Ngram {
         //Set ngram parameters
         conf.set("ngramSize", args[0]);
 
-        // TODO get query Ngrams
         String query = readFile(args[1]);
         conf.set("query",query);
 
         JobClient.runJob(conf);
-        //if necessary
-//        conf.waitForCompletion(true);
     }
 }
